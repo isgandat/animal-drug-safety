@@ -1,0 +1,80 @@
+{
+  "status": "pass",
+  "checks": [
+    {
+      "name": "reports_loaded",
+      "value": 744473,
+      "rule": "> 0",
+      "status": "pass"
+    },
+    {
+      "name": "orphan_child_rows",
+      "value": 0,
+      "rule": "== 0",
+      "status": "pass"
+    },
+    {
+      "name": "future_receive_dates",
+      "value": 0,
+      "rule": "== 0",
+      "status": "pass"
+    },
+    {
+      "name": "year_outside_partition_share",
+      "value": 0.0,
+      "rule": "<= 0.01",
+      "status": "pass"
+    },
+    {
+      "name": "serious_label_coverage",
+      "value": 0.8857,
+      "rule": ">= 0.80",
+      "status": "pass"
+    },
+    {
+      "name": "reports_with_reaction",
+      "value": 0.9996,
+      "rule": ">= 0.95",
+      "status": "pass"
+    },
+    {
+      "name": "reports_with_drug",
+      "value": 1.0,
+      "rule": ">= 0.95",
+      "status": "pass"
+    },
+    {
+      "name": "missing_species",
+      "value": 0.1105,
+      "rule": "<= 0.30 (warn above)",
+      "status": "pass"
+    },
+    {
+      "name": "missing_age_years",
+      "value": 0.1987,
+      "rule": "<= 0.30 (warn above)",
+      "status": "pass"
+    },
+    {
+      "name": "missing_weight_kg",
+      "value": 0.2081,
+      "rule": "<= 0.30 (warn above)",
+      "status": "pass"
+    },
+    {
+      "name": "implausible_age_or_weight",
+      "value": 0,
+      "rule": "== 0",
+      "status": "pass"
+    },
+    {
+      "name": "rejected_record_share",
+      "value": 0.0,
+      "rule": "<= 0.01",
+      "status": "pass"
+    }
+  ],
+  "reports_total": 744473,
+  "partitions_total": 42,
+  "seconds": 75.2
+}

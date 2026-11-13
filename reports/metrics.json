@@ -1,0 +1,290 @@
+{
+  "metadata": {
+    "model_version": "20261113-e32453e8",
+    "model": "mlp_neural_net",
+    "trained_at": "2026-11-13T16:27:07+00:00",
+    "threshold": 0.353117,
+    "target_recall": 0.9,
+    "split": {
+      "train": "<= 2022",
+      "validation": "2023",
+      "test": ">= 2024"
+    },
+    "rows": {
+      "train": 403999,
+      "validation": 55276,
+      "test": 162729
+    },
+    "n_features": 1721,
+    "data_fingerprint": "e32453e836032ddb5c53f4a02b781b2262938024c80fc9de0c0f7564ee1b1515",
+    "partitions": 42,
+    "sklearn": "1.6.1",
+    "python": "3.9.6"
+  },
+  "models": {
+    "logistic_regression": {
+      "fit_seconds": 3.3,
+      "validation": {
+        "n": 55276,
+        "prevalence": 0.3575,
+        "roc_auc": 0.8901,
+        "pr_auc": 0.8114,
+        "brier": 0.1283,
+        "log_loss": 0.4059,
+        "threshold": 0.2956,
+        "recall": 0.9,
+        "precision": 0.642,
+        "flagged_share": 0.5012
+      },
+      "test": {
+        "n": 162729,
+        "prevalence": 0.3721,
+        "roc_auc": 0.875,
+        "pr_auc": 0.8032,
+        "brier": 0.1377,
+        "log_loss": 0.4306,
+        "threshold": 0.2956,
+        "recall": 0.8864,
+        "precision": 0.6341,
+        "flagged_share": 0.5202
+      }
+    },
+    "mlp_neural_net": {
+      "fit_seconds": 12.6,
+      "validation": {
+        "n": 55276,
+        "prevalence": 0.3575,
+        "roc_auc": 0.9463,
+        "pr_auc": 0.9118,
+        "brier": 0.0889,
+        "log_loss": 0.2946,
+        "threshold": 0.3531,
+        "recall": 0.9,
+        "precision": 0.7674,
+        "flagged_share": 0.4193
+      },
+      "test": {
+        "n": 162729,
+        "prevalence": 0.3721,
+        "roc_auc": 0.9323,
+        "pr_auc": 0.895,
+        "brier": 0.1002,
+        "log_loss": 0.3331,
+        "threshold": 0.3531,
+        "recall": 0.8889,
+        "precision": 0.7585,
+        "flagged_share": 0.4361
+      }
+    }
+  },
+  "selected": "mlp_neural_net",
+  "triage_system_test": {
+    "n": 174939,
+    "prevalence": 0.4151,
+    "roc_auc": 0.9423,
+    "pr_auc": 0.9238,
+    "brier": 0.094,
+    "log_loss": 0.3214,
+    "threshold": 0.3531,
+    "recall": 0.9074,
+    "precision": 0.7922,
+    "flagged_share": 0.4755,
+    "rule_routed_share": 0.0698,
+    "rule_precision": 0.988
+  },
+  "calibration_test": {
+    "mean_predicted": [
+      0.0019,
+      0.0075,
+      0.0194,
+      0.0501,
+      0.1295,
+      0.3202,
+      0.6122,
+      0.8608,
+      0.9611,
+      0.995
+    ],
+    "observed_rate": [
+      0.0122,
+      0.0179,
+      0.0344,
+      0.0556,
+      0.138,
+      0.2773,
+      0.5803,
+      0.724,
+      0.9103,
+      0.9714
+    ]
+  },
+  "drift_train_vs_test": [
+    {
+      "feature": "age_years",
+      "psi": 0.0786,
+      "status": "stable"
+    },
+    {
+      "feature": "weight_kg",
+      "psi": 0.0047,
+      "status": "stable"
+    },
+    {
+      "feature": "n_drugs",
+      "psi": 0.0202,
+      "status": "stable"
+    },
+    {
+      "feature": "species",
+      "psi": 0.0507,
+      "status": "stable"
+    },
+    {
+      "feature": "reporter",
+      "psi": 0.1033,
+      "status": "moderate"
+    },
+    {
+      "feature": "type_info",
+      "psi": 0.0293,
+      "status": "stable"
+    },
+    {
+      "feature": "health_prior",
+      "psi": 0.0736,
+      "status": "stable"
+    },
+    {
+      "feature": "n_reactions",
+      "psi": 0.0152,
+      "status": "stable"
+    }
+  ],
+  "score_psi_validation_vs_test": 0.0184,
+  "top_coefficients": {
+    "raises_risk": [
+      [
+        "rx=Neoplasia NOS",
+        5.254
+      ],
+      [
+        "rx=Lymphoma",
+        5.029
+      ],
+      [
+        "rx=Blindness",
+        4.613
+      ],
+      [
+        "rx=Immune mediated haemolytic anaemia",
+        4.056
+      ],
+      [
+        "rx=Deafness",
+        3.983
+      ],
+      [
+        "rx=Abortion",
+        3.967
+      ],
+      [
+        "rx=Diabetes",
+        3.919
+      ],
+      [
+        "rx=Mast cell tumour",
+        3.755
+      ],
+      [
+        "rx=Stillbirth",
+        3.707
+      ],
+      [
+        "rx=Deafness NOS",
+        3.677
+      ],
+      [
+        "rx=Hind limb paralysis",
+        3.584
+      ],
+      [
+        "rx=Grand mal seizure",
+        3.541
+      ],
+      [
+        "rx=Diabetes mellitus",
+        3.494
+      ],
+      [
+        "rx=Hearing decreased",
+        3.447
+      ],
+      [
+        "rx=Cardiac disorder NOS",
+        3.385
+      ]
+    ],
+    "lowers_risk": [
+      [
+        "rx=Application site stickiness",
+        -5.552
+      ],
+      [
+        "rx=Application site skin change NOS",
+        -4.204
+      ],
+      [
+        "ingr=recombinant human insulin",
+        -4.016
+      ],
+      [
+        "ingr=protamine zinc recombinant human insulin",
+        -2.566
+      ],
+      [
+        "rx=INEFFECTIVE, ASCARIDS",
+        -1.98
+      ],
+      [
+        "ingr=milbemcyin",
+        -1.912
+      ],
+      [
+        "ingr=flumethrin",
+        -1.896
+      ],
+      [
+        "route=Buccal",
+        -1.751
+      ],
+      [
+        "ingr=pyrantel pyrantel embonate",
+        -1.677
+      ],
+      [
+        "rx=Dispenser, Abnormal",
+        -1.675
+      ],
+      [
+        "rx=Apathy",
+        -1.541
+      ],
+      [
+        "health_prior=missing",
+        -1.519
+      ],
+      [
+        "rx=Containers, Leaking",
+        -1.513
+      ],
+      [
+        "ingr=recombitek lyme",
+        -1.428
+      ],
+      [
+        "health_prior=No Attending Veterinarian",
+        -1.282
+      ]
+    ]
+  }
+}
