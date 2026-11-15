@@ -47,3 +47,24 @@ def test_artifacts_are_versioned_and_loadable(trained):
 def test_empty_split_stops_with_a_clear_message(synthetic_db, tmp_path):
     with pytest.raises(SystemExit, match="split 'test' is empty"):
         run(synthetic_db, tmp_path / "m", tmp_path / "r", train_to=2022, val_year=2023, test_from=2030)
+
+
+def test_selected_model_is_calibrated_on_validation(trained):
+    m = trained["metrics"]
+    cal = m["calibration"]
+    assert cal["fit_on"] == "validation" and cal["slope"] > 0
+    for key in ("test_before", "test_after"):
+        assert 0 <= cal[key]["brier"] <= 1 and 0 <= cal[key]["ece"] <= 1
+    # a monotone calibration must not change the ranking metrics
+    selected = m["models"][m["selected"]]["test"]
+    assert cal["test_after"]["pr_auc"] == pytest.approx(selected["pr_auc"], abs=1e-4)
+    card = (trained["reports"] / "model_card.md").read_text()
+    assert "Calibrated" in card and "ECE" in card
+
+
+def test_threshold_is_on_the_calibrated_scale(trained):
+    bundle = joblib.load(trained["model"])
+    m = trained["metrics"]
+    raw_threshold = m["models"][m["selected"]]["validation"]["threshold"]
+    assert bundle["threshold"] == pytest.approx(bundle["calibrator"].predict([raw_threshold])[0], abs=1e-3)
+    assert bundle["metadata"]["threshold"] == pytest.approx(bundle["threshold"])
