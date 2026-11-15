@@ -99,6 +99,8 @@ def triage(report: Report) -> Triage:
         raise HTTPException(503, "model not trained yet - run `python -m ml.train`")
     x = bundle["vectorizer"].transform([report_features(case)])
     p = float(bundle["model"].predict_proba(x)[0, 1])
+    if bundle.get("calibrator") is not None:  # model files saved before calibration have none
+        p = float(bundle["calibrator"].predict([p])[0])
     return Triage(serious_probability=round(p, 4), flagged=p >= bundle["threshold"], route="model",
                   threshold=round(bundle["threshold"], 4), model_version=version)
 
