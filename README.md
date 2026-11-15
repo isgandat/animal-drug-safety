@@ -21,6 +21,8 @@ that ranks new reports by how likely they are to be *serious*, and serves the re
 3. **Signal screening** (`stats/`): PRR and ROR with chi-squared for every ingredient × reaction pair,
    using the Evans criteria (a ≥ 3, PRR ≥ 2, χ² ≥ 4). The counts are computed in SQL.
 4. **API** (`app/`): FastAPI with `/triage`, `/signals`, `/stats` and `/health`.
+5. **Deployment** (`deploy/`): a GitHub Actions workflow retrains the model, blocks it if it is worse
+   than agreed limits, and ships the API to AWS Lambda.
 
 ## Results
 
@@ -109,8 +111,15 @@ docker run -p 8000:8000 -v "$PWD/data:/app/data" -v "$PWD/models:/app/models" an
 ```
 
 CI (GitHub Actions) runs lint and the tests, then a smoke run of the real pipeline on one quarter
-(including a second run that must skip the unchanged file), then a Docker build with a health check.
-The tests use synthetic records only.
+(including a second run that must skip the unchanged file), then Docker builds of the API image and the
+AWS Lambda image, each with a health check. The tests use synthetic records only.
+
+## Deployment (AWS Lambda)
+
+The Deploy workflow runs on a `v*` tag or by hand. It retrains on the latest openFDA export, runs a
+release gate (test PR-AUC, baseline comparison, recall, calibration), pushes a container image to ECR
+and updates the Lambda function, then smoke-tests the live URL. GitHub signs in to AWS with OIDC,
+so no access keys are stored. Setup, permissions, cost and clean-up: [`deploy/README.md`](deploy/README.md).
 
 ## Layout
 
@@ -119,7 +128,8 @@ etl/      download.py  parse.py  db.py  quality.py  run.py
 ml/       features.py  train.py  calibration.py  drift.py
 stats/    signals.py
 app/      main.py
-tests/    72 tests (parsing, idempotent loads, quality gates, leakage, PRR/ROR maths, training, calibration, API)
+deploy/   lambda.Dockerfile  check_metrics.py  smoke_test.py  setup_aws.sh  deploy_lambda.sh  teardown_aws.sh
+tests/    79 tests (parsing, idempotent loads, quality gates, leakage, PRR/ROR maths, training, calibration, API, release gate)
 reports/  model_card.md  metrics.json  quality_report.json
 ```
 

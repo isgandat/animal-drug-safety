@@ -18,7 +18,7 @@ serve:
 	uvicorn app.main:app --reload --port 8000
 
 lint:
-	$(PY) -m pyflakes etl ml stats app tests
+	$(PY) -m pyflakes etl ml stats app tests deploy
 
 test:
 	$(PY) -m pytest -q
