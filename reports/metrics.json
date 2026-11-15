@@ -1,10 +1,15 @@
 {
   "metadata": {
-    "model_version": "20261113-e32453e8",
+    "model_version": "20261115-e32453e8",
     "model": "mlp_neural_net",
-    "trained_at": "2026-11-13T16:27:07+00:00",
-    "threshold": 0.353117,
+    "trained_at": "2026-11-15T14:33:37+00:00",
+    "threshold": 0.304196,
     "target_recall": 0.9,
+    "calibration": {
+      "method": "platt_logit",
+      "slope": 0.7913,
+      "intercept": -0.3484
+    },
     "split": {
       "train": "<= 2022",
       "validation": "2023",
@@ -23,7 +28,7 @@
   },
   "models": {
     "logistic_regression": {
-      "fit_seconds": 3.3,
+      "fit_seconds": 3.4,
       "validation": {
         "n": 55276,
         "prevalence": 0.3575,
@@ -50,7 +55,7 @@
       }
     },
     "mlp_neural_net": {
-      "fit_seconds": 12.6,
+      "fit_seconds": 13.6,
       "validation": {
         "n": 55276,
         "prevalence": 0.3575,
@@ -83,40 +88,82 @@
     "prevalence": 0.4151,
     "roc_auc": 0.9423,
     "pr_auc": 0.9238,
-    "brier": 0.094,
-    "log_loss": 0.3214,
-    "threshold": 0.3531,
+    "brier": 0.0921,
+    "log_loss": 0.309,
+    "threshold": 0.3042,
     "recall": 0.9074,
     "precision": 0.7922,
     "flagged_share": 0.4755,
     "rule_routed_share": 0.0698,
     "rule_precision": 0.988
   },
-  "calibration_test": {
-    "mean_predicted": [
-      0.0019,
-      0.0075,
-      0.0194,
-      0.0501,
-      0.1295,
-      0.3202,
-      0.6122,
-      0.8608,
-      0.9611,
-      0.995
-    ],
-    "observed_rate": [
-      0.0122,
-      0.0179,
-      0.0344,
-      0.0556,
-      0.138,
-      0.2773,
-      0.5803,
-      0.724,
-      0.9103,
-      0.9714
-    ]
+  "calibration": {
+    "method": "platt_logit",
+    "slope": 0.7913,
+    "intercept": -0.3484,
+    "fit_on": "validation",
+    "test_before": {
+      "brier": 0.1002,
+      "log_loss": 0.3331,
+      "pr_auc": 0.895,
+      "ece": 0.0336
+    },
+    "test_after": {
+      "brier": 0.0982,
+      "log_loss": 0.3198,
+      "pr_auc": 0.895,
+      "ece": 0.015
+    },
+    "reliability_test": {
+      "raw": [
+        0.0019,
+        0.0075,
+        0.0194,
+        0.0501,
+        0.1295,
+        0.3202,
+        0.6122,
+        0.8608,
+        0.9611,
+        0.995
+      ],
+      "calibrated": [
+        0.0048,
+        0.0144,
+        0.0305,
+        0.064,
+        0.1344,
+        0.28,
+        0.5068,
+        0.7526,
+        0.9012,
+        0.9809
+      ],
+      "observed": [
+        0.0122,
+        0.0179,
+        0.0344,
+        0.0556,
+        0.138,
+        0.2773,
+        0.5803,
+        0.724,
+        0.9103,
+        0.9714
+      ],
+      "counts": [
+        16273,
+        16273,
+        16273,
+        16273,
+        16273,
+        16273,
+        16273,
+        16273,
+        16273,
+        16272
+      ]
+    }
   },
   "drift_train_vs_test": [
     {

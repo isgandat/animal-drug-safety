@@ -1,0 +1,92 @@
+name: Deploy
+
+# Retrains on the latest openFDA export, blocks weak models, and ships the API to AWS Lambda.
+# Runs on a v* tag or by hand from main. One-time AWS setup: deploy/README.md.
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+  id-token: write  # GitHub OIDC token -> short-lived AWS credentials, no stored access keys
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: eu-central-1
+  ECR_REPOSITORY: animal-drug-safety
+  FUNCTION_NAME: animal-drug-safety-api
+
+jobs:
+  deploy:
+    # The AWS role trusts only main and v* tags of this repository.
+    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0  # v7.1.0
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements-dev.txt
+
+      - name: Lint and test
+        run: |
+          python -m pyflakes etl ml stats app tests deploy
+          python -m pytest -q
+
+      - name: Load the openFDA data (2016 onwards) and run the quality checks
+        run: python -m etl.run --from-year 2016
+
+      - name: Train, calibrate and write the model card
+        run: |
+          python -m ml.train
+          echo "MODEL_VERSION=$(python -c 'import json; print(json.load(open("models/metadata.json"))["model_version"])')" >> "$GITHUB_ENV"
+
+      - name: Release gate
+        run: python deploy/check_metrics.py reports/metrics.json
+
+      - name: Keep the model card and metrics
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+        with:
+          name: model-report-${{ github.run_number }}
+          path: |
+            reports/
+            models/metadata.json
+          if-no-files-found: ignore
+
+      - name: AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd  # v6.3.0
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          mask-aws-account-id: true
+
+      - id: ecr
+        uses: aws-actions/amazon-ecr-login@03f1aad4c6c7ffd436567f42f9384779290529bd  # v2.1.7
+
+      - name: Build and push the Lambda image
+        env:
+          REGISTRY: ${{ steps.ecr.outputs.registry }}
+        run: |
+          IMAGE="$REGISTRY/$ECR_REPOSITORY:${GITHUB_SHA::7}-$MODEL_VERSION"
+          docker build --platform linux/amd64 --provenance=false -f deploy/lambda.Dockerfile -t "$IMAGE" .
+          docker push "$IMAGE"
+          echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
+
+      - name: Deploy to Lambda
+        run: bash deploy/deploy_lambda.sh "$IMAGE"
+
+      - name: Smoke test the live API
+        run: |
+          python deploy/smoke_test.py "$FUNCTION_URL" "$MODEL_VERSION"
+          {
+            echo "## Deployed"
+            echo "- model \`$MODEL_VERSION\` from commit \`${GITHUB_SHA::7}\`"
+            echo "- API docs: ${FUNCTION_URL}docs"
+          } >> "$GITHUB_STEP_SUMMARY"

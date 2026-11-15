@@ -1,8 +1,10 @@
+import joblib
 import pytest
 from fastapi.testclient import TestClient
 
-from app.main import app
+from app.main import Report, app
 from etl import db
+from ml.features import report_features
 from stats.signals import compute, save
 
 REPORT = {"species": "Dog", "age_years": 12, "routes": ["Intravenous"],
@@ -29,6 +31,25 @@ def test_triage_scores_with_the_model(client):
     assert risky["route"] == "model" and 0 <= risky["serious_probability"] <= 1
     assert risky["serious_probability"] > mild["serious_probability"]
     assert risky["flagged"] == (risky["serious_probability"] >= risky["threshold"])
+
+
+def raw_score(bundle) -> float:
+    case = Report(**REPORT).model_dump()
+    return float(bundle["model"].predict_proba(bundle["vectorizer"].transform([report_features(case)]))[0, 1])
+
+
+def test_triage_serves_the_calibrated_probability(client, trained):
+    bundle = joblib.load(trained["model"])
+    expected = bundle["calibrator"].predict([raw_score(bundle)])[0]
+    assert client.post("/triage", json=REPORT).json()["serious_probability"] == pytest.approx(expected, abs=1e-4)
+
+
+def test_models_saved_without_a_calibrator_still_work(trained, monkeypatch, tmp_path):
+    old = {k: v for k, v in joblib.load(trained["model"]).items() if k != "calibrator"}
+    joblib.dump(old, tmp_path / "old.joblib")
+    monkeypatch.setenv("ADS_MODEL", str(tmp_path / "old.joblib"))
+    body = TestClient(app).post("/triage", json=REPORT).json()
+    assert body["serious_probability"] == pytest.approx(raw_score(old), abs=1e-4)
 
 
 def test_death_reports_take_the_rule_route(client):

@@ -4,6 +4,8 @@
 
 Time-based split (no shuffling across years): train on older reports, choose
 the model and alert threshold on the validation year, report on later years.
+The chosen model's scores are calibrated on the validation year (Platt scaling,
+see ml/calibration.py); the saved threshold is on the calibrated scale.
 Reports that mention death or euthanasia are handled by a rule and are left
 out of model training and model metrics (they would leak the label).
 """
@@ -22,7 +24,6 @@ from typing import Dict, List, Sequence
 import joblib
 import numpy as np
 import sklearn
-from sklearn.calibration import calibration_curve
 from sklearn.feature_extraction import DictVectorizer
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import (average_precision_score, brier_score_loss, log_loss,
@@ -33,6 +34,7 @@ from sklearn.preprocessing import MaxAbsScaler
 
 from etl import db
 from ml import drift
+from ml.calibration import Calibrator, expected_calibration_error, reliability
 from ml.features import Example, load_cases, report_features, rule_serious
 
 log = logging.getLogger("train")
@@ -145,17 +147,32 @@ def run(db_path: Path, out_dir: Path, report_dir: Path, train_to: int, val_year:
                  results[name]["fit_seconds"])
 
     best = max(results, key=lambda n: results[n]["validation"]["pr_auc"])  # chosen on validation only
-    model, threshold, p_val, p_test = fitted[best]
+    model, _, p_val, p_test = fitted[best]
+
+    # Calibrate on the validation year only; the threshold moves to the calibrated scale.
+    calibrator = Calibrator().fit(y["validation"], p_val)
+    c_val, c_test = calibrator.predict(p_val), calibrator.predict(p_test)
+    threshold = pick_threshold(y["validation"], c_val, target_recall)
+    calibration = {**calibrator.to_dict(), "fit_on": "validation"}
+    for key, scores in (("test_before", p_test), ("test_after", c_test)):
+        e = evaluate(y["test"], scores)
+        calibration[key] = {"brier": e["brier"], "log_loss": e["log_loss"], "pr_auc": e["pr_auc"],
+                            "ece": round(expected_calibration_error(y["test"], scores), 4)}
+    raw_bins, observed, counts = reliability(y["test"], p_test)
+    calibration["reliability_test"] = {"raw": raw_bins, "calibrated": reliability(y["test"], c_test, by=p_test)[0],
+                                       "observed": observed, "counts": counts}
+    log.info("calibration on test: ECE %.4f -> %.4f, Brier %.4f -> %.4f",
+             calibration["test_before"]["ece"], calibration["test_after"]["ece"],
+             calibration["test_before"]["brier"], calibration["test_after"]["brier"])
 
     # Whole triage system on the test years: rule-flagged reports get score 1.0.
     test_all = splits["test"]
     sys_scores = np.ones(int(test_all.sum()))
-    sys_scores[~rule_flags[test_all]] = p_test
+    sys_scores[~rule_flags[test_all]] = c_test
     system = evaluate(labels[test_all], sys_scores, threshold)
     system["rule_routed_share"] = round(float(rule_flags[test_all].mean()), 4)
     system["rule_precision"] = round(float(labels[test_all & rule_flags].mean()), 4)
 
-    prob_true, prob_pred = calibration_curve(y["test"], p_test, n_bins=10, strategy="quantile")
     cases = {name: [e.case for e in rows] for name, rows in data.items()}
     input_drift = drift.drift_report(cases["train"], cases["test"])
     score_psi = drift.psi_numeric(list(p_val), list(p_test))
@@ -169,6 +186,7 @@ def run(db_path: Path, out_dir: Path, report_dir: Path, train_to: int, val_year:
         "trained_at": trained_at.isoformat(timespec="seconds"),
         "threshold": round(threshold, 6),
         "target_recall": target_recall,
+        "calibration": calibrator.to_dict(),
         "split": {"train": f"<= {train_to}", "validation": str(val_year), "test": f">= {test_from}"},
         "rows": {name: int(len(v)) for name, v in y.items()},
         "n_features": len(vec.feature_names_),
@@ -182,8 +200,7 @@ def run(db_path: Path, out_dir: Path, report_dir: Path, train_to: int, val_year:
         "models": results,
         "selected": best,
         "triage_system_test": system,
-        "calibration_test": {"mean_predicted": [round(float(v), 4) for v in prob_pred],
-                             "observed_rate": [round(float(v), 4) for v in prob_true]},
+        "calibration": calibration,
         "drift_train_vs_test": input_drift,
         "score_psi_validation_vs_test": round(score_psi, 4),
         "top_coefficients": top_coefficients(fitted["logistic_regression"][0], vec),
@@ -191,7 +208,8 @@ def run(db_path: Path, out_dir: Path, report_dir: Path, train_to: int, val_year:
 
     out_dir.mkdir(parents=True, exist_ok=True)
     report_dir.mkdir(parents=True, exist_ok=True)
-    joblib.dump({"vectorizer": vec, "model": model, "threshold": threshold, "metadata": metadata},
+    joblib.dump({"vectorizer": vec, "model": model, "calibrator": calibrator, "threshold": threshold,
+                 "metadata": metadata},
                 out_dir / "model.joblib", compress=3)
     (out_dir / "metadata.json").write_text(json.dumps(metadata, indent=2) + "\n")
     (report_dir / "metrics.json").write_text(json.dumps(metrics, indent=2) + "\n")
@@ -202,6 +220,8 @@ def run(db_path: Path, out_dir: Path, report_dir: Path, train_to: int, val_year:
 
 def model_card(m: Dict) -> str:
     md, sel = m["metadata"], m["selected"]
+    c = m["calibration"]
+    rel = c["reliability_test"]
     lines = [
         "# Model card - adverse-event seriousness triage", "",
         f"*Generated by `ml/train.py` - version `{md['model_version']}`, trained {md['trained_at']}.*", "",
@@ -224,16 +244,24 @@ def model_card(m: Dict) -> str:
     s = m["triage_system_test"]
     lines += [
         "", f"Test prevalence of serious reports: {m['models'][sel]['test']['prevalence']}.",
-        f"Threshold {md['threshold']:.4f} was set on validation to reach recall >= {md['target_recall']}.", "",
+        f"Threshold {md['threshold']:.4f} (calibrated scale) was set on validation to reach recall >="
+        f" {md['target_recall']}.", "",
         "## Whole triage system on the test years (rule + model)", "",
         f"- Reports: {s['n']}, serious: {s['prevalence']}",
         f"- Routed by the death/euthanasia rule: {s['rule_routed_share']} (rule precision {s['rule_precision']})",
         f"- ROC-AUC {s['roc_auc']}, PR-AUC {s['pr_auc']}, recall {s['recall']}, precision {s['precision']},"
         f" flagged {s['flagged_share']}", "",
-        "## Calibration on the test years (10 quantile bins)", "",
-        "| Mean predicted | " + " | ".join(f"{v:.2f}" for v in m["calibration_test"]["mean_predicted"]) + " |",
-        "|---" * (len(m["calibration_test"]["mean_predicted"]) + 1) + "|",
-        "| Observed rate | " + " | ".join(f"{v:.2f}" for v in m["calibration_test"]["observed_rate"]) + " |", "",
+        "## Calibration (Platt scaling on the log-odds, fit on the validation year)", "",
+        f"Calibrated = sigmoid({c['slope']:.4f} x logit(score) {'-' if c['intercept'] < 0 else '+'} {abs(c['intercept']):.4f}). The mapping is strictly",
+        "increasing, so the ranking, PR-AUC and ROC-AUC do not change. The API serves the calibrated score.", "",
+        "| Test years | Brier | Log loss | ECE (10 equal-count bins) |", "|---|---|---|---|",
+        f"| Raw model score | {c['test_before']['brier']:.4f} | {c['test_before']['log_loss']:.4f} | {c['test_before']['ece']:.4f} |",
+        f"| Calibrated score | {c['test_after']['brier']:.4f} | {c['test_after']['log_loss']:.4f} | {c['test_after']['ece']:.4f} |",
+        "", "Reliability on the test years (10 equal-count bins, lowest scores first):", "",
+        "| Raw score | " + " | ".join(f"{v:.2f}" for v in rel["raw"]) + " |",
+        "|---" * (len(rel["raw"]) + 1) + "|",
+        "| Calibrated score | " + " | ".join(f"{v:.2f}" for v in rel["calibrated"]) + " |",
+        "| Observed rate | " + " | ".join(f"{v:.2f}" for v in rel["observed"]) + " |", "",
         "## Drift (PSI, train vs test inputs)", "",
         "| Input | PSI | Status |", "|---|---|---|",
     ]
